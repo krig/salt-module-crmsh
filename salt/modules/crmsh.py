@@ -13,7 +13,7 @@ from salt.ext import six
 import re
 
 
-def configure_show(xml=False, changed=False, show_type=None):
+def configure_show(xml=False, changed=False, filter=None):
     '''
     Display CIB objects
 
@@ -21,7 +21,7 @@ def configure_show(xml=False, changed=False, show_type=None):
         show CIB objects with XML format (default: False)
     changed
         show all modified objects (default: False)
-    show_type
+    filter
         list of show type, valid elements include:
         object IDs,
         object type, use the \'type:\' prefix,
@@ -42,8 +42,8 @@ def configure_show(xml=False, changed=False, show_type=None):
     .. code-block:: bash
 
         salt '*' crmsh.configure_show 
-        salt '*' crmsh.configure_show show_type="vip, type:node"
-        salt '*' crmsh.configure_show xml=True show_type='related:vip'
+        salt '*' crmsh.configure_show filter="vip, type:node"
+        salt '*' crmsh.configure_show xml=True filter='related:vip'
         salt '*' crmsh.configure_show changed=True
     '''
     cmd = ['crm', 'configure', 'show']
@@ -53,9 +53,9 @@ def configure_show(xml=False, changed=False, show_type=None):
     if changed is True:
         cmd += ["changed"]
         return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
-    if isinstance(show_type, six.string_types):
-        cmd += re.split(',\s*|\s', show_type)
-    if isinstance(show_type, (list, tuple)):
-        cmd += show_type
+    if isinstance(filter, six.string_types):
+        cmd += re.split(',\s*|\s', filter)
+    if isinstance(filter, (list, tuple)):
+        cmd += filter
 
     return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
