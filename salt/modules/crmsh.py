@@ -33,50 +33,42 @@ def _dc():
     return True
 
 
-def configure_property(prop):
+def configure_property(**kwargs):
     '''
     Set a cluster property
 
-    prop
-        format of each property should be \"key=value\", or a dict type
+    kwargs
+        property \"key=value\" pairs
 
     This function will reject to run if current node is not DC.
+
 
     CLI Example:
 
     .. code-block:: bash
 
-        salt '*' crmsh.configure_property prop='stonith-enabled=true'
+        salt '*' crmsh.configure_property stonith-enabled=true cluster-name=test
     '''
     if not _dc():
         raise CommandExecutionError("This function can only run at DC node")
 
     cmd = ['crm', 'configure', 'property']
 
-    if isinstance(prop, dict):
-        for k, v in prop.items():
-            cmd.append("%s=%s" % (k, v))
-    elif isinstance(prop, six.string_types):
-        for item in re.split(',\s*|\s', prop):
-            if re.search('\w+=\w+', item):
-                cmd.append(item)
-            else:
-                raise CommandExecutionError("format of each property should be \"key=value\"")
-    else:
-        raise CommandExecutionError("invalid prop type: %s" % type(prop))
+    for k, v in kwargs.items():
+        if k.startswith('__pub_'):
+            continue
+        cmd.append("%s=%s" % (k, v))
+    if len(cmd) == 3:
+        raise CommandExecutionError("Except at least one key=value pair")
 
     return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
 
 
-def configure_show(xml=False, changed=False, filter=None):
+def configure_show(*args, **kwargs):
     '''
     Display CIB objects
 
-    xml
-        show CIB objects with XML format (default: False)
-    changed
-        show all modified objects (default: False)
-    filter
+    args
         list of show type, valid elements include:
         object IDs,
         object type, use the \'type:\' prefix,
@@ -91,26 +83,33 @@ def configure_show(xml=False, changed=False, filter=None):
               | fencing_topology
               | role | user | acl_target
               | tag
+    kwargs
+        options \"key=value\" pairs, include:
+        xml
+            show CIB objects with XML format (default: False)
+        changed
+            show all modified objects (default: False)
+
 
     CLI Example:
 
     .. code-block:: bash
 
         salt '*' crmsh.configure_show 
-        salt '*' crmsh.configure_show filter="vip, type:node"
-        salt '*' crmsh.configure_show xml=True filter='related:vip'
+        salt '*' crmsh.configure_show vip type:node
+        salt '*' crmsh.configure_show related:vip xml=True
         salt '*' crmsh.configure_show changed=True
     '''
     cmd = ['crm', 'configure', 'show']
 
+    xml = kwargs.get('xml', False)
     if xml is True:
         cmd += ["xml"]
+    changed = kwargs.get('changed', False)
     if changed is True:
         cmd += ["changed"]
         return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
-    if isinstance(filter, six.string_types):
-        cmd += re.split(',\s*|\s', filter)
-    if isinstance(filter, (list, tuple)):
-        cmd += filter
+    if args:
+        cmd += args
 
     return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
