@@ -32,84 +32,133 @@ def _dc():
 
     return True
 
+default_attr={"output_loglevel"="trace", "python_shell"=False}
 
-def configure_property(**kwargs):
+configure_table = {
+    {"cmd" : "show",
+        "doc" :
+            '''
+            Display CIB objects
+
+            args
+                list of show type, valid elements include:
+                object IDs,
+                object type, use the \'type:\' prefix,
+                object tag, use the \'tag:\' prefix,
+                constraints related to a primitive, use the \'related:\' prefix.
+                (default: None)
+
+                type :: node | primitive | group | clone | ms | rsc_template | bundle
+                      | location | colocation | order
+                      | rsc_ticket
+                      | property | rsc_defaults | op_defaults
+                      | fencing_topology
+                      | role | user | acl_target
+                      | tag
+            kwargs
+                options \"key=value\" pairs, include:
+                xml
+                    show CIB objects with XML format (default: False)
+                changed
+                    show all modified objects (default: False)
+
+            CLI Example:
+            .. code-block:: bash
+                salt '*' crmsh.configure_show
+                salt '*' crmsh.configure_show vip type:node
+                salt '*' crmsh.configure_show related:vip xml=True
+                salt '*' crmsh.configure_show changed=True
+            ''',
+        "check" : None,
+        "exception" : None,
+        "onlyDC" : False,
+        "attrs" : {"xml":False,
+                 "changed":False}
+    },
+    {"cmd" : "property",
+        "doc" :
+            '''
+            Set a cluster property
+
+            kwargs
+                property \"key=value\" pairs
+            This function will reject to run if current node is not DC.
+
+            CLI Example:
+            .. code-block:: bash
+                salt '*' crmsh.configure_property stonith-enabled=true cluster-name=test
+            ''',
+        "check" : (None, 1),
+        "onlyDC" : True,
+        "exception" : exception_property,
+        "attrs" : {}
+    }
+}
+
+def exception_property(args, kwargs):
+    remove_keys = []
+
+    for k in kwargs.keys():
+        if k.startswith('__pub_'):
+            remove_keys += k
+
+    for k in remove_keys:
+        kwargs.pop(k)
+
+def show_support_cmd():
+    cmd_list = []
+    for ele in configure_table:
+        cmd_list += ele["cmd"]
+    raise CommandExecutionError(", ".join(cmd_list))
+
+def show_cmd_usage(cmd_dict):
+    raise CommandExecutionError(cmd_dict["doc"])
+
+def show_cmd_attr(cmd_dict):
+    raise CommandExecutionError(", ".join(cmd_dict["attr"].keys()))
+
+def configure(*args, **kwargs):
     '''
-    Set a cluster property
-
-    kwargs
-        property \"key=value\" pairs
-
-    This function will reject to run if current node is not DC.
-
-
     CLI Example:
 
     .. code-block:: bash
-
-        salt '*' crmsh.configure_property stonith-enabled=true cluster-name=test
+       salt '*' crmsh.configure cmd=show
+       salt '*' crmsh.configure cmd=property
     '''
-    if not _dc():
+    crm = ["crm", "configure"]
+
+    for ele in configure_table:
+        if kwargs.get("cmd", "") == ele.get("cmd"):
+            cmd_dict = ele
+            break
+    else:
+        return show_support_cmd()
+
+    kwargs.pop("cmd")
+    crm += cmd_dict["cmd"]
+
+    # Run an exception workflow for the if necessary
+    if cmd_dict["check"] is not None:
+        if (cmd_dict["check"][0] is not None and len(args) < cmd_dict["check"][0]) or
+           (cmd_dict["check"][1] is not None and len(kwargs) < cmd_dict["check"][1]):
+            return show_cmd_usage(cmd_dict)
+
+    # Run an exception workflow for the if necessary
+    # May exit after exception workflow
+    if cmd_dict["exception"] is not None:
+        cmd_dict["exception"](args, kwargs)
+
+    cmd_dict["attr"].update(default_attr)
+
+    for key in kwargs:
+        if key in cmd_dict["attr"]:
+            cmd_dict["attr"][key] = kwargs[key]
+        else:
+            return show_cmd_attr(cmd_dict)
+
+    if cmd_dict["onlyDC"] and not _dc():
         raise CommandExecutionError("This function can only run at DC node")
 
-    cmd = ['crm', 'configure', 'property']
+    crm += args
 
-    for k, v in kwargs.items():
-        if k.startswith('__pub_'):
-            continue
-        cmd.append("%s=%s" % (k, v))
-    if len(cmd) == 3:
-        raise CommandExecutionError("Except at least one key=value pair")
-
-    return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
-
-
-def configure_show(*args, **kwargs):
-    '''
-    Display CIB objects
-
-    args
-        list of show type, valid elements include:
-        object IDs,
-        object type, use the \'type:\' prefix,
-        object tag, use the \'tag:\' prefix,
-        constraints related to a primitive, use the \'related:\' prefix.
-        (default: None)
-
-        type :: node | primitive | group | clone | ms | rsc_template | bundle
-              | location | colocation | order
-              | rsc_ticket
-              | property | rsc_defaults | op_defaults
-              | fencing_topology
-              | role | user | acl_target
-              | tag
-    kwargs
-        options \"key=value\" pairs, include:
-        xml
-            show CIB objects with XML format (default: False)
-        changed
-            show all modified objects (default: False)
-
-
-    CLI Example:
-
-    .. code-block:: bash
-
-        salt '*' crmsh.configure_show 
-        salt '*' crmsh.configure_show vip type:node
-        salt '*' crmsh.configure_show related:vip xml=True
-        salt '*' crmsh.configure_show changed=True
-    '''
-    cmd = ['crm', 'configure', 'show']
-
-    xml = kwargs.get('xml', False)
-    if xml is True:
-        cmd += ["xml"]
-    changed = kwargs.get('changed', False)
-    if changed is True:
-        cmd += ["changed"]
-        return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
-    if args:
-        cmd += args
-
-    return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
+    return __salt__['cmd.run_all'](crm, **cmd_dict["attr"])
