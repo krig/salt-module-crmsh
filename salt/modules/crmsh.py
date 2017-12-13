@@ -15,24 +15,6 @@ from salt.ext import six
 from salt.exceptions import CommandExecutionError
 
 
-def _dc():
-    '''
-    check whether we are DC node
-    '''
-    import socket
-
-    try:
-        res = __salt__['cmd.run_all']("crmadmin -D")
-    except:
-        return False
-    if 'stdout' in res.keys():
-        dc = res['stdout'].split()[-1]
-        if dc != socket.gethostname():
-            return False
-
-    return True
-
-
 def configure_property(**kwargs):
     '''
     Set a cluster property
@@ -49,9 +31,6 @@ def configure_property(**kwargs):
 
         salt '*' crmsh.configure_property stonith-enabled=true cluster-name=test
     '''
-    if not _dc():
-        raise CommandExecutionError("This function can only run at DC node")
-
     cmd = ['crm', 'configure', 'property']
 
     for k, v in kwargs.items():
