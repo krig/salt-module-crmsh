@@ -15,25 +15,14 @@ from salt.ext import six
 from salt.exceptions import CommandExecutionError
 
 
-def _dc():
-    '''
-    check whether we are DC node
-    '''
-    import socket
-
-    try:
-        res = __salt__['cmd.run_all']("crmadmin -D")
-    except:
-        return False
-    if 'stdout' in res.keys():
-        dc = res['stdout'].split()[-1]
-        if dc != socket.gethostname():
-            return False
-
-    return True
+def _run(cmd, **opt_dict):
+    if opt_dict:
+        return __salt__['cmd.run_all'](cmd, **opt_dict)
+    else:
+        return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
 
 
-def configure_property(**kwargs):
+def property(**kwargs):
     '''
     Set a cluster property
 
@@ -47,11 +36,8 @@ def configure_property(**kwargs):
 
     .. code-block:: bash
 
-        salt '*' crmsh.configure_property stonith-enabled=true cluster-name=test
+        salt '*' crmsh.property stonith-enabled=true cluster-name=test
     '''
-    if not _dc():
-        raise CommandExecutionError("This function can only run at DC node")
-
     cmd = ['crm', 'configure', 'property']
 
     for k, v in kwargs.items():
@@ -61,10 +47,10 @@ def configure_property(**kwargs):
     if len(cmd) == 3:
         raise CommandExecutionError("Except at least one key=value pair")
 
-    return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
+    return _run(cmd)
 
 
-def configure_show(*args, **kwargs):
+def show(*args, **kwargs):
     '''
     Display CIB objects
 
@@ -95,10 +81,10 @@ def configure_show(*args, **kwargs):
 
     .. code-block:: bash
 
-        salt '*' crmsh.configure_show 
-        salt '*' crmsh.configure_show vip type:node
-        salt '*' crmsh.configure_show related:vip xml=True
-        salt '*' crmsh.configure_show changed=True
+        salt '*' crmsh.show
+        salt '*' crmsh.show vip type:node
+        salt '*' crmsh.show related:vip xml=True
+        salt '*' crmsh.show changed=True
     '''
     cmd = ['crm', 'configure', 'show']
 
@@ -108,8 +94,8 @@ def configure_show(*args, **kwargs):
     changed = kwargs.get('changed', False)
     if changed is True:
         cmd += ["changed"]
-        return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
+        return _run(cmd)
     if args:
         cmd += args
 
-    return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
+    return _run(cmd)
