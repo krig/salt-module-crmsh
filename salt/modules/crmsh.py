@@ -15,6 +15,13 @@ from salt.ext import six
 from salt.exceptions import CommandExecutionError
 
 
+def _run(cmd, **opt_dict):
+    if opt_dict:
+        return __salt__['cmd.run_all'](cmd, **opt_dict)
+    else:
+        return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
+
+
 def property(**kwargs):
     '''
     Set a cluster property
@@ -40,7 +47,7 @@ def property(**kwargs):
     if len(cmd) == 3:
         raise CommandExecutionError("Except at least one key=value pair")
 
-    return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
+    return _run(cmd)
 
 
 def show(*args, **kwargs):
@@ -87,8 +94,8 @@ def show(*args, **kwargs):
     changed = kwargs.get('changed', False)
     if changed is True:
         cmd += ["changed"]
-        return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
+        return _run(cmd)
     if args:
         cmd += args
 
-    return __salt__['cmd.run_all'](cmd, output_loglevel='trace', python_shell=False)
+    return _run(cmd)
